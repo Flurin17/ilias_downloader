@@ -138,27 +138,15 @@ def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overw
     os.makedirs(download_dir, exist_ok=True)
     
     # Setup logging
-    log_dir = os.path.join(download_dir, 'logs')
-    os.makedirs(log_dir, exist_ok=True)
-    # Configure logging with a Queue handler for thread safety
-    log_queue = Queue()
-    queue_handler = logging.handlers.QueueHandler(log_queue)
-    
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(queue_handler)
-    
-    # Create file and console handlers
-    log_file = os.path.join(log_dir, f'download_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
-    handlers = [
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
-    ]
-    
-    # Start queue listener
-    listener = logging.handlers.QueueListener(log_queue, *handlers)
-    listener.start()
+    log_file = os.path.join(download_dir, f'download_ref{ref_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file),
+            logging.StreamHandler()
+        ]
+    )
     
     start_time = datetime.now()
     session = create_session(cookies)
