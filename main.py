@@ -40,18 +40,19 @@ def get_filename_from_cd(cd):
 def process_video(filepath, target_fps=1):
     """Process video to change its FPS using ffmpeg"""
     try:
+        filepath = Path(filepath)
         print(f"\nProcessing video: {filepath}")
-        output_path = filepath + ".tmp"
+        output_path = filepath.with_suffix(filepath.suffix + '.tmp')
         
         # Use ffmpeg to change FPS
         cmd = [
-            'ffmpeg', '-i', filepath,
+            'ffmpeg', '-i', str(filepath),
             '-filter:v', f'fps={target_fps}',
             '-c:v', 'libx264',  # Use H.264 codec
             '-preset', 'fast',   # Fast encoding
             '-c:a', 'copy',      # Copy audio without re-encoding
             '-y',                # Overwrite output file if exists
-            output_path
+            str(output_path)
         ]
         
         print(f"Converting to {target_fps} FPS...")
@@ -66,13 +67,13 @@ def process_video(filepath, target_fps=1):
         stdout, stderr = process.communicate()
         
         if process.returncode == 0:
-            os.remove(filepath)
-            os.rename(output_path, filepath)
+            filepath.unlink()
+            output_path.rename(filepath)
             print("Video processing completed successfully")
         else:
             print(f"Error processing video: {stderr}")
-            if os.path.exists(output_path):
-                os.remove(output_path)
+            if output_path.exists():
+                output_path.unlink()
             raise Exception(f"ffmpeg failed with return code {process.returncode}")
             
     except Exception as e:
