@@ -40,7 +40,7 @@ def process_video(filepath, target_fps=1):
     """Process video to change its FPS using ffmpeg"""
     try:
         filepath = Path(filepath)
-        print(f"\nProcessing video: {filepath}")
+        logging.info(f"Processing video: {filepath}")
         
         # Create a temporary file in the same directory with a simple name
         temp_dir = filepath.parent
@@ -62,7 +62,7 @@ def process_video(filepath, target_fps=1):
             output_path_str
         ]
         
-        print(f"Converting to {target_fps} FPS...")
+        logging.info(f"Converting to {target_fps} FPS...")
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -76,15 +76,15 @@ def process_video(filepath, target_fps=1):
         if process.returncode == 0:
             filepath.unlink()
             output_path.rename(filepath)
-            print("Video processing completed successfully")
+            logging.info("Video processing completed successfully")
         else:
-            print(f"Error processing video: {stderr}")
+            logging.error(f"Error processing video: {stderr}")
             if output_path.exists():
                 output_path.unlink()
             raise Exception(f"ffmpeg failed with return code {process.returncode}")
             
     except Exception as e:
-        print(f"\nError processing video {filepath}: {str(e)}")
+        logging.error(f"Error processing video {filepath}: {str(e)}")
         logging.error(f"Error processing video {filepath}: {str(e)}")
 
 def download_file(session, file_url, download_dir, max_size=None, overwrite=False, max_retries=3, process_videos=True):
@@ -140,13 +140,13 @@ def download_file(session, file_url, download_dir, max_size=None, overwrite=Fals
         # Process video if it's a video file and processing is enabled
         mime_type = mimetypes.guess_type(download_path_with_extension)[0]
         if process_videos and mime_type and mime_type.startswith('video'):
-            print(f"\nDetected video file: {filename}")
-            print(f"MIME type: {mime_type}")
+            logging.info(f"Detected video file: {filename}")
+            logging.info(f"MIME type: {mime_type}")
             process_video(download_path_with_extension)
         
         return True
     else:
-        print(f"Failed to download: {file_url} (Status code: {response.status_code})")
+        logging.error(f"Failed to download: {file_url} (Status code: {response.status_code})")
         return False
 
 # Function to recursively download all files in a folder
@@ -179,7 +179,7 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, over
                 )
                 futures.append(future)
             elif 'ilias.php?baseClass=ilrepositorygui' in href:
-                print(f"Link {href} is a folder")
+                logging.info(f"Processing folder: {href}")
                 download_folder_files(session, href, download_dir, max_size, overwrite, max_workers)
         
         # Wait for all downloads to complete
@@ -225,7 +225,7 @@ def load_cookies_from_file(cookie_file):
         with open(cookie_file, 'r') as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading cookies from {cookie_file}: {str(e)}")
+        logging.error(f"Error loading cookies from {cookie_file}: {str(e)}")
         return None
 
 def main():
@@ -258,8 +258,8 @@ def main():
         return
     
     try:
-        print(f"Starting download from {args.url}")
-        print(f"Files will be saved to: {args.directory}")
+        logging.info(f"Starting download from {args.url}")
+        logging.info(f"Files will be saved to: {args.directory}")
         download_ilias_module(
             args.url, 
             cookies, 
@@ -269,9 +269,9 @@ def main():
             max_workers=args.workers,
             process_videos=not args.keep_video_fps
         )
-        print("\nDownload completed successfully!")
+        logging.info("Download completed successfully!")
     except Exception as e:
-        print(f"\nAn error occurred: {str(e)}")
+        logging.error(f"An error occurred: {str(e)}")
 
 if __name__ == "__main__":
     main()

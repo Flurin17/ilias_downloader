@@ -19,6 +19,7 @@ A Python script to download files and folders from ILIAS learning management sys
   - requests
   - beautifulsoup4
   - tqdm
+  - ffmpeg (for video processing)
 
 ## Installation
 
@@ -30,7 +31,12 @@ cd ilias_downloader
 
 2. Install required packages:
 ```bash
-pip install requests beautifulsoup4 tqdm moviepy
+pip install requests beautifulsoup4 tqdm
+
+# Install ffmpeg (required for video processing):
+# Windows: Download from https://ffmpeg.org/download.html
+# Linux: sudo apt-get install ffmpeg
+# macOS: brew install ffmpeg
 ```
 
 ## Configuration
