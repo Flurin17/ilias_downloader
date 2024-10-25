@@ -8,6 +8,7 @@ import argparse
 import json
 from tqdm import tqdm
 import logging
+import logging.handlers
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
@@ -35,7 +36,7 @@ def get_filename_from_cd(cd):
     return fname
 
 # Function to download a file
-def download_file(session, file_url, download_dir, max_size=None, skip_existing=False, max_retries=3):
+def download_file(session, file_url, download_dir, max_size=None, overwrite=False, max_retries=3):
     for attempt in range(max_retries):
         try:
             response = session.get(file_url, stream=True, headers={
@@ -63,7 +64,7 @@ def download_file(session, file_url, download_dir, max_size=None, skip_existing=
         filename = sanitize_filename(filename)
         download_path_with_extension = os.path.join(download_dir, filename)
         
-        if skip_existing and os.path.exists(download_path_with_extension):
+        if not overwrite and os.path.exists(download_path_with_extension):
             logging.info(f"Skipping existing file: {filename}")
             return True
             
@@ -90,7 +91,7 @@ def download_file(session, file_url, download_dir, max_size=None, skip_existing=
         return False
 
 # Function to recursively download all files in a folder
-def download_folder_files(session, folder_url, download_dir, max_size=None, skip_existing=False, max_workers=3):
+def download_folder_files(session, folder_url, download_dir, max_size=None, overwrite=False, max_workers=3):
     response = session.get(folder_url, headers={
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     })
@@ -114,7 +115,7 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, skip
                     href, 
                     download_dir,
                     max_size,
-                    skip_existing
+                    overwrite
                 )
                 futures.append(future)
             elif 'ilias.php?baseClass=ilrepositorygui' in href:
@@ -126,7 +127,7 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, skip
             future.result()
 
 # Main function to initiate download
-def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, skip_existing=False, max_workers=3):
+def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overwrite=False, max_workers=3):
     # Extract ref_id from URL
     parsed_url = urllib.parse.urlparse(ilias_url)
     query_params = urllib.parse.parse_qs(parsed_url.query)
@@ -165,7 +166,7 @@ def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, skip_
         os.makedirs(download_dir)
         
     logging.info(f"Starting download from {ilias_url}")
-    download_folder_files(session, ilias_url, download_dir, max_size, skip_existing, max_workers)
+    download_folder_files(session, ilias_url, download_dir, max_size, overwrite, max_workers)
     
     end_time = datetime.now()
     duration = end_time - start_time
@@ -188,8 +189,8 @@ def main():
                       help='Path to JSON file containing cookies (default: cookies.json)')
     parser.add_argument('-m', '--max-size', type=float,
                       help='Maximum file size in MB (e.g., 100.5)')
-    parser.add_argument('-s', '--skip-existing', action='store_true',
-                      help='Skip files that already exist')
+    parser.add_argument('-o', '--overwrite', action='store_true',
+                      help='Overwrite existing files (default: skip existing)')
     parser.add_argument('-w', '--workers', type=int, default=3,
                       help='Number of parallel downloads (default: 3)')
     
@@ -208,7 +209,7 @@ def main():
             cookies, 
             args.directory,
             max_size=args.max_size,
-            skip_existing=args.skip_existing,
+            overwrite=args.overwrite,
             max_workers=args.workers
         )
         print("\nDownload completed successfully!")
