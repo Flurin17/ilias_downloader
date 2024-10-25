@@ -92,14 +92,17 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, skip
     soup = BeautifulSoup(response.content, 'html.parser')
     
     # Find all links to files and subfolders
-    for link in soup.find_all('a', href=True, class_="il_ContainerItemTitle"):
-        href = link['href']
-        href = urllib.parse.urljoin(folder_url, href)
+    links = soup.find_all('a', href=True, class_="il_ContainerItemTitle")
+    futures = []
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        for link in links:
+            href = link['href']
+            href = urllib.parse.urljoin(folder_url, href)
 
-        # Check if the link is a file or a folder
-        if 'goto.php?target=file_' in href:
-            logging.info(f"Found file: {href}")
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Check if the link is a file or a folder
+            if 'goto.php?target=file_' in href:
+                logging.info(f"Found file: {href}")
                 future = executor.submit(
                     download_file, 
                     session, 
@@ -108,13 +111,26 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, skip
                     max_size,
                     skip_existing
                 )
-
-        elif 'ilias.php?baseClass=ilrepositorygui' in href:
-            print(f"Link {href} is a folder")
-            download_folder_files(session, href, download_dir)
+                futures.append(future)
+            elif 'ilias.php?baseClass=ilrepositorygui' in href:
+                print(f"Link {href} is a folder")
+                download_folder_files(session, href, download_dir, max_size, skip_existing, max_workers)
+        
+        # Wait for all downloads to complete
+        for future in futures:
+            future.result()
 
 # Main function to initiate download
 def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, skip_existing=False, max_workers=3):
+    # Extract ref_id from URL
+    parsed_url = urllib.parse.urlparse(ilias_url)
+    query_params = urllib.parse.parse_qs(parsed_url.query)
+    ref_id = query_params.get('ref_id', ['unknown'])[0]
+    
+    # Create specific folder for this ref_id
+    download_dir = os.path.join(download_dir, f'ref_{ref_id}')
+    os.makedirs(download_dir, exist_ok=True)
+    
     # Setup logging
     log_dir = os.path.join(download_dir, 'logs')
     os.makedirs(log_dir, exist_ok=True)
