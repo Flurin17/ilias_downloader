@@ -80,6 +80,7 @@ python main.py "https://ilias.example.com/goto.php?target=crs_12345" \
 - `-m, --max-size`: Maximum file size in MB (optional)
 - `-w, --workers`: Number of parallel downloads (default: 3)
 - `-o, --overwrite`: Overwrite existing files (default: skip existing)
+- `--keep-video-fps`: Keep original video FPS (default: convert to 1 FPS)
 
 ## Output Structure
 
