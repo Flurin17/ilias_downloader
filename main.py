@@ -44,15 +44,19 @@ def process_video(filepath, target_fps=1):
         print(f"\nProcessing video: {filepath}")
         output_path = filepath.with_suffix(filepath.suffix + '.tmp')
         
+        # Convert paths to forward slashes and make them absolute
+        input_path = str(filepath.absolute()).replace('\\', '/')
+        output_path_str = str(output_path.absolute()).replace('\\', '/')
+        
         # Use ffmpeg to change FPS
         cmd = [
-            'ffmpeg', '-i', str(filepath),
+            'ffmpeg', '-i', input_path,
             '-filter:v', f'fps={target_fps}',
             '-c:v', 'libx264',  # Use H.264 codec
             '-preset', 'fast',   # Fast encoding
             '-c:a', 'copy',      # Copy audio without re-encoding
             '-y',                # Overwrite output file if exists
-            str(output_path)
+            output_path_str
         ]
         
         print(f"Converting to {target_fps} FPS...")
