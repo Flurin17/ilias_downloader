@@ -4,6 +4,9 @@ from bs4 import BeautifulSoup
 import urllib.parse
 import mimetypes
 import re
+import argparse
+import json
+from tqdm import tqdm
 
 # Function to create a session with provided cookies
 def create_session(cookies):
@@ -45,12 +48,18 @@ def download_file(session, file_url, download_dir):
         filename = sanitize_filename(filename)
         download_path_with_extension = os.path.join(download_dir, filename)
         
-        with open(download_path_with_extension, 'wb') as file:
-            for chunk in response.iter_content(1024):
-                file.write(chunk)
-        print(f"Downloaded: {download_path_with_extension}")
+        # Get file size for progress bar
+        total_size = int(response.headers.get('content-length', 0))
+        
+        with tqdm(total=total_size, unit='iB', unit_scale=True, desc=filename) as pbar:
+            with open(download_path_with_extension, 'wb') as file:
+                for chunk in response.iter_content(1024):
+                    size = file.write(chunk)
+                    pbar.update(size)
+        return True
     else:
-        print(f"Failed to download: {file_url}")
+        print(f"Failed to download: {file_url} (Status code: {response.status_code})")
+        return False
 
 # Function to recursively download all files in a folder
 def download_folder_files(session, folder_url, download_dir):
@@ -80,14 +89,36 @@ def download_ilias_module(ilias_url, cookies, download_dir):
         os.makedirs(download_dir)
     download_folder_files(session, ilias_url, download_dir)
 
-# Example usage
-if __name__ == "__main__":
-    ilias_url = "https://elearning.hslu.ch/ilias/ilias.php?baseClass=ilrepositorygui&cmd=view&ref_id=6189124"
-    cookies = [
-        {'name': 'PHPSESSID', 'value': 'a728b6cfe9edb2f005282fe1d8669c4e'},
-        {'name': 'ilClientId', 'value': 'hslu'},
-        # Add other necessary cookies here
-    ]
-    download_dir = "downloads/"
+def load_cookies_from_file(cookie_file):
+    try:
+        with open(cookie_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading cookies from {cookie_file}: {str(e)}")
+        return None
+
+def main():
+    parser = argparse.ArgumentParser(description='Download files from ILIAS platform')
+    parser.add_argument('url', help='ILIAS module URL')
+    parser.add_argument('-d', '--directory', default='downloads',
+                      help='Download directory (default: downloads)')
+    parser.add_argument('-c', '--cookies', required=True,
+                      help='Path to JSON file containing cookies')
     
-    download_ilias_module(ilias_url, cookies, download_dir)
+    args = parser.parse_args()
+    
+    # Load cookies from file
+    cookies = load_cookies_from_file(args.cookies)
+    if not cookies:
+        return
+    
+    try:
+        print(f"Starting download from {args.url}")
+        print(f"Files will be saved to: {args.directory}")
+        download_ilias_module(args.url, cookies, args.directory)
+        print("\nDownload completed successfully!")
+    except Exception as e:
+        print(f"\nAn error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    main()

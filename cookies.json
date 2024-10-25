@@ -1,0 +1,10 @@
+[
+    {
+        "name": "PHPSESSID",
+        "value": "your_session_id"
+    },
+    {
+        "name": "ilClientId",
+        "value": "hslu"
+    }
+]
