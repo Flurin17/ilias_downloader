@@ -40,16 +40,22 @@ def get_filename_from_cd(cd):
 def process_video(filepath, target_fps=1):
     """Process video to change its FPS"""
     try:
+        print(f"\nProcessing video: {filepath}")
         video = VideoFileClip(filepath)
+        print(f"Original FPS: {video.fps}")
         if video.fps != target_fps:
+            print(f"Converting to {target_fps} FPS...")
             output_path = filepath + ".tmp"
             video.write_videofile(output_path, fps=target_fps, logger=None)
             video.close()
             os.remove(filepath)
             os.rename(output_path, filepath)
+            print("Video processing completed successfully")
         else:
+            print("Video already at target FPS, skipping")
             video.close()
     except Exception as e:
+        print(f"\nError processing video {filepath}: {str(e)}")
         logging.error(f"Error processing video {filepath}: {str(e)}")
 
 def download_file(session, file_url, download_dir, max_size=None, overwrite=False, max_retries=3, process_videos=True):
@@ -103,7 +109,10 @@ def download_file(session, file_url, download_dir, max_size=None, overwrite=Fals
                     pbar.update(size)
         
         # Process video if it's a video file and processing is enabled
-        if process_videos and mimetypes.guess_type(download_path_with_extension)[0] and mimetypes.guess_type(download_path_with_extension)[0].startswith('video'):
+        mime_type = mimetypes.guess_type(download_path_with_extension)[0]
+        if process_videos and mime_type and mime_type.startswith('video'):
+            print(f"\nDetected video file: {filename}")
+            print(f"MIME type: {mime_type}")
             process_video(download_path_with_extension)
         
         return True
