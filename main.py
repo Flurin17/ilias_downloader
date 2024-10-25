@@ -8,6 +8,7 @@ import argparse
 import json
 from tqdm import tqdm
 import logging
+from moviepy.editor import VideoFileClip
 import logging.handlers
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -36,7 +37,22 @@ def get_filename_from_cd(cd):
     return fname
 
 # Function to download a file
-def download_file(session, file_url, download_dir, max_size=None, overwrite=False, max_retries=3):
+def process_video(filepath, target_fps=1):
+    """Process video to change its FPS"""
+    try:
+        video = VideoFileClip(filepath)
+        if video.fps != target_fps:
+            output_path = filepath + ".tmp"
+            video.write_videofile(output_path, fps=target_fps, logger=None)
+            video.close()
+            os.remove(filepath)
+            os.rename(output_path, filepath)
+        else:
+            video.close()
+    except Exception as e:
+        logging.error(f"Error processing video {filepath}: {str(e)}")
+
+def download_file(session, file_url, download_dir, max_size=None, overwrite=False, max_retries=3, process_videos=True):
     for attempt in range(max_retries):
         try:
             response = session.get(file_url, stream=True, headers={
@@ -85,13 +101,18 @@ def download_file(session, file_url, download_dir, max_size=None, overwrite=Fals
                 for chunk in response.iter_content(1024):
                     size = file.write(chunk)
                     pbar.update(size)
+        
+        # Process video if it's a video file and processing is enabled
+        if process_videos and mimetypes.guess_type(download_path_with_extension)[0] and mimetypes.guess_type(download_path_with_extension)[0].startswith('video'):
+            process_video(download_path_with_extension)
+        
         return True
     else:
         print(f"Failed to download: {file_url} (Status code: {response.status_code})")
         return False
 
 # Function to recursively download all files in a folder
-def download_folder_files(session, folder_url, download_dir, max_size=None, overwrite=False, max_workers=3):
+def download_folder_files(session, folder_url, download_dir, max_size=None, overwrite=False, max_workers=3, process_videos=True):
     response = session.get(folder_url, headers={
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     })
@@ -115,7 +136,8 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, over
                     href, 
                     download_dir,
                     max_size,
-                    overwrite
+                    overwrite,
+                    process_videos=process_videos
                 )
                 futures.append(future)
             elif 'ilias.php?baseClass=ilrepositorygui' in href:
@@ -127,7 +149,7 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, over
             future.result()
 
 # Main function to initiate download
-def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overwrite=False, max_workers=3):
+def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overwrite=False, max_workers=3, process_videos=True):
     # Extract ref_id from URL
     parsed_url = urllib.parse.urlparse(ilias_url)
     query_params = urllib.parse.parse_qs(parsed_url.query)
@@ -187,6 +209,8 @@ def main():
                       help='Overwrite existing files (default: skip existing)')
     parser.add_argument('-w', '--workers', type=int, default=3,
                       help='Number of parallel downloads (default: 3)')
+    parser.add_argument('--keep-video-fps', action='store_true',
+                      help='Keep original video FPS (default: convert to 1 FPS)')
     
     args = parser.parse_args()
     
@@ -204,7 +228,8 @@ def main():
             args.directory,
             max_size=args.max_size,
             overwrite=args.overwrite,
-            max_workers=args.workers
+            max_workers=args.workers,
+            process_videos=not args.keep_video_fps
         )
         print("\nDownload completed successfully!")
     except Exception as e:
