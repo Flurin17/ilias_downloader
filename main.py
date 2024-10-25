@@ -133,12 +133,12 @@ def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overw
     query_params = urllib.parse.parse_qs(parsed_url.query)
     ref_id = query_params.get('ref_id', ['unknown'])[0]
     
+    # Setup logging before creating ref_id subfolder
+    log_file = os.path.join(download_dir, f'download_ref{ref_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+    
     # Create specific folder for this ref_id
     download_dir = os.path.join(download_dir, f'ref_{ref_id}')
     os.makedirs(download_dir, exist_ok=True)
-    
-    # Setup logging
-    log_file = os.path.join(download_dir, f'download_ref{ref_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
