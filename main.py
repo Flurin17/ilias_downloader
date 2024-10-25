@@ -120,7 +120,7 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, over
                 futures.append(future)
             elif 'ilias.php?baseClass=ilrepositorygui' in href:
                 print(f"Link {href} is a folder")
-                download_folder_files(session, href, download_dir, max_size, skip_existing, max_workers)
+                download_folder_files(session, href, download_dir, max_size, overwrite, max_workers)
         
         # Wait for all downloads to complete
         for future in futures:
