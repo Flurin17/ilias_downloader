@@ -42,11 +42,15 @@ def process_video(filepath, target_fps=1):
     try:
         filepath = Path(filepath)
         print(f"\nProcessing video: {filepath}")
-        output_path = filepath.with_suffix(filepath.suffix + '.tmp')
         
-        # Convert paths to forward slashes and make them absolute
-        input_path = str(filepath.absolute()).replace('\\', '/')
-        output_path_str = str(output_path.absolute()).replace('\\', '/')
+        # Create a temporary file in the same directory with a simple name
+        temp_dir = filepath.parent
+        temp_name = f"temp_{filepath.stem}{filepath.suffix}"
+        output_path = temp_dir / temp_name
+        
+        # Convert paths to strings with forward slashes
+        input_path = str(filepath).replace('\\', '/')
+        output_path_str = str(output_path).replace('\\', '/')
         
         # Use ffmpeg to change FPS
         cmd = [
