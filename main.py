@@ -169,9 +169,15 @@ def load_cookies_from_file(cookie_file):
         return None
 
 def main():
+    # Create downloads and logs directories at startup
+    downloads_dir = 'downloads'
+    logs_dir = os.path.join(downloads_dir, 'logs')
+    os.makedirs(downloads_dir, exist_ok=True)
+    os.makedirs(logs_dir, exist_ok=True)
+
     parser = argparse.ArgumentParser(description='Download files from ILIAS platform')
     parser.add_argument('url', help='ILIAS module URL')
-    parser.add_argument('-d', '--directory', default='downloads',
+    parser.add_argument('-d', '--directory', default=downloads_dir,
                       help='Download directory (default: downloads)')
     parser.add_argument('-c', '--cookies', default='cookies.json',
                       help='Path to JSON file containing cookies (default: cookies.json)')
