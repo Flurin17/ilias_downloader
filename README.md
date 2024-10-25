@@ -30,7 +30,7 @@ cd ilias_downloader
 
 2. Install required packages:
 ```bash
-pip install requests beautifulsoup4 tqdm
+pip install requests beautifulsoup4 tqdm moviepy
 ```
 
 ## Configuration

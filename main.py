@@ -12,7 +12,6 @@ import subprocess
 import logging.handlers
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from queue import Queue
 from datetime import datetime
 from pathlib import Path
 
