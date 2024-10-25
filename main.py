@@ -8,7 +8,7 @@ import argparse
 import json
 from tqdm import tqdm
 import logging
-from moviepy.editor import VideoFileClip
+import subprocess
 import logging.handlers
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -38,22 +38,43 @@ def get_filename_from_cd(cd):
 
 # Function to download a file
 def process_video(filepath, target_fps=1):
-    """Process video to change its FPS"""
+    """Process video to change its FPS using ffmpeg"""
     try:
         print(f"\nProcessing video: {filepath}")
-        video = VideoFileClip(filepath)
-        print(f"Original FPS: {video.fps}")
-        if video.fps != target_fps:
-            print(f"Converting to {target_fps} FPS...")
-            output_path = filepath + ".tmp"
-            video.write_videofile(output_path, fps=target_fps, logger=None)
-            video.close()
+        output_path = filepath + ".tmp"
+        
+        # Use ffmpeg to change FPS
+        cmd = [
+            'ffmpeg', '-i', filepath,
+            '-filter:v', f'fps={target_fps}',
+            '-c:v', 'libx264',  # Use H.264 codec
+            '-preset', 'fast',   # Fast encoding
+            '-c:a', 'copy',      # Copy audio without re-encoding
+            '-y',                # Overwrite output file if exists
+            output_path
+        ]
+        
+        print(f"Converting to {target_fps} FPS...")
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True
+        )
+        
+        # Wait for the process to complete
+        stdout, stderr = process.communicate()
+        
+        if process.returncode == 0:
             os.remove(filepath)
             os.rename(output_path, filepath)
             print("Video processing completed successfully")
         else:
-            print("Video already at target FPS, skipping")
-            video.close()
+            print(f"Error processing video: {stderr}")
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            raise Exception(f"ffmpeg failed with return code {process.returncode}")
+            
     except Exception as e:
         print(f"\nError processing video {filepath}: {str(e)}")
         logging.error(f"Error processing video {filepath}: {str(e)}")
