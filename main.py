@@ -8,7 +8,9 @@ import argparse
 import json
 from tqdm import tqdm
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 from datetime import datetime
 from pathlib import Path
 
@@ -74,7 +76,10 @@ def download_file(session, file_url, download_dir, max_size=None, skip_existing=
         # Get file size for progress bar
         total_size = int(response.headers.get('content-length', 0))
         
-        with tqdm(total=total_size, unit='iB', unit_scale=True, desc=filename) as pbar:
+        # Use position parameter for tqdm to avoid interference with logging
+        position = threading.current_thread().ident % 10
+        with tqdm(total=total_size, unit='iB', unit_scale=True, desc=filename,
+                 position=position, leave=False) as pbar:
             with open(download_path_with_extension, 'wb') as file:
                 for chunk in response.iter_content(1024):
                     size = file.write(chunk)
@@ -134,14 +139,25 @@ def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, skip_
     # Setup logging
     log_dir = os.path.join(download_dir, 'logs')
     os.makedirs(log_dir, exist_ok=True)
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(os.path.join(log_dir, f'download_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')),
-            logging.StreamHandler()
-        ]
-    )
+    # Configure logging with a Queue handler for thread safety
+    log_queue = Queue()
+    queue_handler = logging.handlers.QueueHandler(log_queue)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(queue_handler)
+    
+    # Create file and console handlers
+    log_file = os.path.join(log_dir, f'download_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+    handlers = [
+        logging.FileHandler(log_file),
+        logging.StreamHandler()
+    ]
+    
+    # Start queue listener
+    listener = logging.handlers.QueueListener(log_queue, *handlers)
+    listener.start()
     
     start_time = datetime.now()
     session = create_session(cookies)
