@@ -7,6 +7,10 @@ import re
 import argparse
 import json
 from tqdm import tqdm
+import logging
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from pathlib import Path
 
 # Function to create a session with provided cookies
 def create_session(cookies):
@@ -29,10 +33,19 @@ def get_filename_from_cd(cd):
     return fname
 
 # Function to download a file
-def download_file(session, file_url, download_dir):
-    response = session.get(file_url, stream=True, headers={
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    })
+def download_file(session, file_url, download_dir, max_size=None, skip_existing=False, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            response = session.get(file_url, stream=True, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+            })
+            break
+        except requests.RequestException as e:
+            if attempt == max_retries - 1:
+                logging.error(f"Failed to download {file_url} after {max_retries} attempts: {str(e)}")
+                return False
+            logging.warning(f"Attempt {attempt + 1} failed, retrying...")
+            continue
     if response.status_code == 200:
         # Get filename from content-disposition
         filename = get_filename_from_cd(response.headers.get('content-disposition'))
@@ -48,6 +61,16 @@ def download_file(session, file_url, download_dir):
         filename = sanitize_filename(filename)
         download_path_with_extension = os.path.join(download_dir, filename)
         
+        if skip_existing and os.path.exists(download_path_with_extension):
+            logging.info(f"Skipping existing file: {filename}")
+            return True
+            
+        # Check file size
+        total_size = int(response.headers.get('content-length', 0))
+        if max_size and total_size > max_size * 1024 * 1024:  # Convert MB to bytes
+            logging.warning(f"Skipping {filename}: Size {total_size/(1024*1024):.1f}MB exceeds limit of {max_size}MB")
+            return False
+        
         # Get file size for progress bar
         total_size = int(response.headers.get('content-length', 0))
         
@@ -62,7 +85,7 @@ def download_file(session, file_url, download_dir):
         return False
 
 # Function to recursively download all files in a folder
-def download_folder_files(session, folder_url, download_dir):
+def download_folder_files(session, folder_url, download_dir, max_size=None, skip_existing=False, max_workers=3):
     response = session.get(folder_url, headers={
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     })
@@ -75,19 +98,46 @@ def download_folder_files(session, folder_url, download_dir):
 
         # Check if the link is a file or a folder
         if 'goto.php?target=file_' in href:
-            print(f"Link {href} is a file")
-            download_file(session, href, download_dir)
+            logging.info(f"Found file: {href}")
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future = executor.submit(
+                    download_file, 
+                    session, 
+                    href, 
+                    download_dir,
+                    max_size,
+                    skip_existing
+                )
 
         elif 'ilias.php?baseClass=ilrepositorygui' in href:
             print(f"Link {href} is a folder")
             download_folder_files(session, href, download_dir)
 
 # Main function to initiate download
-def download_ilias_module(ilias_url, cookies, download_dir):
+def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, skip_existing=False, max_workers=3):
+    # Setup logging
+    log_dir = os.path.join(download_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(os.path.join(log_dir, f'download_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')),
+            logging.StreamHandler()
+        ]
+    )
+    
+    start_time = datetime.now()
     session = create_session(cookies)
     if not os.path.exists(download_dir):
         os.makedirs(download_dir)
-    download_folder_files(session, ilias_url, download_dir)
+        
+    logging.info(f"Starting download from {ilias_url}")
+    download_folder_files(session, ilias_url, download_dir, max_size, skip_existing, max_workers)
+    
+    end_time = datetime.now()
+    duration = end_time - start_time
+    logging.info(f"Download completed in {duration}")
 
 def load_cookies_from_file(cookie_file):
     try:
@@ -104,6 +154,12 @@ def main():
                       help='Download directory (default: downloads)')
     parser.add_argument('-c', '--cookies', required=True,
                       help='Path to JSON file containing cookies')
+    parser.add_argument('-m', '--max-size', type=float,
+                      help='Maximum file size in MB (e.g., 100.5)')
+    parser.add_argument('-s', '--skip-existing', action='store_true',
+                      help='Skip files that already exist')
+    parser.add_argument('-w', '--workers', type=int, default=3,
+                      help='Number of parallel downloads (default: 3)')
     
     args = parser.parse_args()
     
@@ -115,7 +171,14 @@ def main():
     try:
         print(f"Starting download from {args.url}")
         print(f"Files will be saved to: {args.directory}")
-        download_ilias_module(args.url, cookies, args.directory)
+        download_ilias_module(
+            args.url, 
+            cookies, 
+            args.directory,
+            max_size=args.max_size,
+            skip_existing=args.skip_existing,
+            max_workers=args.workers
+        )
         print("\nDownload completed successfully!")
     except Exception as e:
         print(f"\nAn error occurred: {str(e)}")
