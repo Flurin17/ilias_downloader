@@ -152,8 +152,8 @@ def main():
     parser.add_argument('url', help='ILIAS module URL')
     parser.add_argument('-d', '--directory', default='downloads',
                       help='Download directory (default: downloads)')
-    parser.add_argument('-c', '--cookies', required=True,
-                      help='Path to JSON file containing cookies')
+    parser.add_argument('-c', '--cookies', default='cookies.json',
+                      help='Path to JSON file containing cookies (default: cookies.json)')
     parser.add_argument('-m', '--max-size', type=float,
                       help='Maximum file size in MB (e.g., 100.5)')
     parser.add_argument('-s', '--skip-existing', action='store_true',
