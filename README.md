@@ -97,6 +97,19 @@ downloads/
 
 The script creates detailed logs for each download session in the download directory. Log files are named using the format: `download_ref{ref_id}_{timestamp}.log`
 
+## Testing
+
+Run the tests using:
+```bash
+python -m unittest tests/test_ilias_downloader.py
+```
+
+The test suite includes:
+- Session creation with cookies
+- Filename sanitization
+- Content-disposition parsing
+- Cookie file loading
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
