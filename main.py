@@ -225,7 +225,7 @@ def load_cookies_from_file(cookie_file):
         with open(cookie_file, 'r') as f:
             return json.load(f)
     except Exception as e:
-        logging.error(f"Error loading cookies from {cookie_file}: {str(e)}")
+        logging.error(f"Error loading cookies from {cookie_file}: {str(e)}", exc_info=True)
         return None
 
 def main():
