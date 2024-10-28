@@ -101,7 +101,7 @@ The script creates detailed logs for each download session in the download direc
 
 Run the tests using:
 ```bash
-python -m unittest tests/test_ilias_downloader.py
+python -m unittest test_ilias_downloader.py
 ```
 
 The test suite includes:
