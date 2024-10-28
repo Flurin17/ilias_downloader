@@ -56,8 +56,10 @@ class TestIliasDownloader(unittest.TestCase):
 
         # Test file not found
         mock_open.side_effect = FileNotFoundError()
-        cookies = load_cookies_from_file('nonexistent.json')
-        self.assertIsNone(cookies)
+        with self.assertLogs(level='ERROR') as log:
+            cookies = load_cookies_from_file('nonexistent.json')
+            self.assertIsNone(cookies)
+            self.assertIn('Cookie file not found:', log.output[0])
 
 if __name__ == '__main__':
     unittest.main()

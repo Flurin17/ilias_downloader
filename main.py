@@ -224,8 +224,11 @@ def load_cookies_from_file(cookie_file):
     try:
         with open(cookie_file, 'r') as f:
             return json.load(f)
+    except FileNotFoundError:
+        logging.error(f"Cookie file not found: {cookie_file}")
+        return None
     except Exception as e:
-        logging.error(f"Error loading cookies from {cookie_file}: {str(e)}", exc_info=True)
+        logging.error(f"Error loading cookies from {cookie_file}: {str(e)}")
         return None
 
 def main():
