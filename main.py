@@ -256,6 +256,7 @@ def main():
     args = parser.parse_args()
     
     # Load cookies from file
+    print("test")
     cookies = load_cookies_from_file(args.cookies)
     if not cookies:
         return
