@@ -169,10 +169,26 @@ def download_folder_files(
     max_workers: int = 3,
     process_videos: bool = True
 ) -> None:
-    response = session.get(folder_url, headers={
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    })
-    soup = BeautifulSoup(response.content, 'html.parser')
+    try:
+        response = session.get(folder_url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+        })
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+    except requests.exceptions.ConnectionError as e:
+        logging.error(f"Connection error while accessing {folder_url}: {str(e)}")
+        if "Failed to resolve" in str(e):
+            logging.error("DNS resolution failed. Please check your internet connection and the URL.")
+        return
+    except requests.exceptions.Timeout:
+        logging.error(f"Timeout while accessing {folder_url}. Server is not responding.")
+        return
+    except requests.exceptions.HTTPError as e:
+        logging.error(f"HTTP error occurred while accessing {folder_url}: {response.status_code} - {str(e)}")
+        return
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Error accessing {folder_url}: {str(e)}")
+        return
     
     # Find all links to files and subfolders
     links = soup.find_all('a', href=True, class_="il_ContainerItemTitle")
@@ -305,8 +321,24 @@ def main() -> None:
             process_videos=not args.keep_video_fps
         )
         logging.info("Download completed successfully!")
+    except requests.exceptions.ConnectionError as e:
+        logging.error(f"Connection error: {str(e)}")
+        if "Failed to resolve" in str(e):
+            logging.error("DNS resolution failed. Please check:")
+            logging.error("1. Your internet connection")
+            logging.error("2. VPN connection if required")
+            logging.error("3. The URL is correct")
+    except requests.exceptions.Timeout:
+        logging.error("The request timed out. The server is not responding.")
+        logging.error("Try again later or with fewer parallel downloads (-w option)")
+    except requests.exceptions.TooManyRedirects:
+        logging.error("Too many redirects. The URL might be incorrect or your cookies may have expired.")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Network error occurred: {str(e)}")
+        logging.error("Please check your internet connection and try again.")
     except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
+        logging.error(f"An unexpected error occurred: {str(e)}")
+        logging.error("If this persists, please report this issue with the error details.")
 
 if __name__ == "__main__":
     main()
