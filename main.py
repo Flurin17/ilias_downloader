@@ -195,10 +195,11 @@ def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overw
     
     # Create specific folder for this ref_id
     ref_download_dir = os.path.join(download_dir, f'ref_{ref_id}')
+    log_dir = os.path.join(download_dir, "logs")
     os.makedirs(ref_download_dir, exist_ok=True)
     
     # Setup logging
-    log_file = os.path.join(download_dir, f'download_ref{ref_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
+    log_file = os.path.join(log_dir, f'download_ref{ref_id}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
     
     # Remove any existing handlers to avoid duplicate logging
     for handler in logging.root.handlers[:]:
@@ -260,8 +261,7 @@ def main():
     
     args = parser.parse_args()
     
-    # Load cookies from file
-    print("test")
+
     cookies = load_cookies_from_file(args.cookies)
     if not cookies:
         return
