@@ -1,4 +1,6 @@
 import os
+from typing import List, Dict, Optional, Any, Union
+from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
@@ -16,18 +18,18 @@ from datetime import datetime
 from pathlib import Path
 
 # Function to create a session with provided cookies
-def create_session(cookies):
+def create_session(cookies: List[Dict[str, str]]) -> requests.Session:
     session = requests.Session()
     for cookie in cookies:
         session.cookies.set(cookie['name'], cookie['value'])
     return session
 
 # Function to sanitize filenames and directory names
-def sanitize_filename(filename):
+def sanitize_filename(filename: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', '_', filename)
 
 # Function to get the file name from the response headers
-def get_filename_from_cd(cd):
+def get_filename_from_cd(cd: Optional[str]) -> Optional[str]:
     if not cd:
         return None
     fname = None
@@ -36,7 +38,7 @@ def get_filename_from_cd(cd):
     return fname
 
 # Function to download a file
-def process_video(filepath, target_fps=1):
+def process_video(filepath: Union[str, Path], target_fps: int = 1) -> None:
     """Process video to change its FPS using ffmpeg"""
     try:
         filepath = Path(filepath)
@@ -87,7 +89,15 @@ def process_video(filepath, target_fps=1):
         logging.error(f"Error processing video {filepath}: {str(e)}")
         logging.error(f"Error processing video {filepath}: {str(e)}")
 
-def download_file(session, file_url, download_dir, max_size=None, overwrite=False, max_retries=3, process_videos=True):
+def download_file(
+    session: requests.Session,
+    file_url: str,
+    download_dir: str,
+    max_size: Optional[float] = None,
+    overwrite: bool = False,
+    max_retries: int = 3,
+    process_videos: bool = True
+) -> bool:
     for attempt in range(max_retries):
         try:
             response = session.get(file_url, stream=True, headers={
@@ -150,7 +160,15 @@ def download_file(session, file_url, download_dir, max_size=None, overwrite=Fals
         return False
 
 # Function to recursively download all files in a folder
-def download_folder_files(session, folder_url, download_dir, max_size=None, overwrite=False, max_workers=3, process_videos=True):
+def download_folder_files(
+    session: requests.Session,
+    folder_url: str,
+    download_dir: str,
+    max_size: Optional[float] = None,
+    overwrite: bool = False,
+    max_workers: int = 3,
+    process_videos: bool = True
+) -> None:
     response = session.get(folder_url, headers={
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
     })
@@ -187,7 +205,15 @@ def download_folder_files(session, folder_url, download_dir, max_size=None, over
             future.result()
 
 # Main function to initiate download
-def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overwrite=False, max_workers=3, process_videos=True):
+def download_ilias_module(
+    ilias_url: str,
+    cookies: List[Dict[str, str]],
+    download_dir: str,
+    max_size: Optional[float] = None,
+    overwrite: bool = False,
+    max_workers: int = 3,
+    process_videos: bool = True
+) -> None:
     # Extract ref_id from URL
     parsed_url = urllib.parse.urlparse(ilias_url)
     query_params = urllib.parse.parse_qs(parsed_url.query)
@@ -226,7 +252,7 @@ def download_ilias_module(ilias_url, cookies, download_dir, max_size=None, overw
     duration = end_time - start_time
     logging.info(f"Download completed in {duration}")
 
-def load_cookies_from_file(cookie_file):
+def load_cookies_from_file(cookie_file: str) -> Optional[List[Dict[str, str]]]:
     try:
         with open(cookie_file, 'r') as f:
             return json.load(f)
@@ -237,7 +263,7 @@ def load_cookies_from_file(cookie_file):
         logging.error(f"Error loading cookies from {cookie_file}: {str(e)}")
         return None
 
-def main():
+def main() -> None:
     # Create downloads and logs directories at startup
     downloads_dir = 'downloads'
     logs_dir = os.path.join(downloads_dir, 'logs')
