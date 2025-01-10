@@ -96,7 +96,8 @@ def download_file(
     max_size: Optional[float] = None,
     overwrite: bool = False,
     max_retries: int = 3,
-    process_videos: bool = True
+    process_videos: bool = True,
+    skip_videos: bool = False
 ) -> bool:
     for attempt in range(max_retries):
         try:
@@ -147,12 +148,17 @@ def download_file(
                     size = file.write(chunk)
                     pbar.update(size)
         
-        # Process video if it's a video file and processing is enabled
+        # Check if it's a video file
         mime_type = mimetypes.guess_type(download_path_with_extension)[0]
-        if process_videos and mime_type and mime_type.startswith('video'):
-            logging.info(f"Detected video file: {filename}")
-            logging.info(f"MIME type: {mime_type}")
-            process_video(download_path_with_extension)
+        if mime_type and mime_type.startswith('video'):
+            if skip_videos:
+                logging.info(f"Skipping video file: {filename}")
+                os.remove(download_path_with_extension)
+                return True
+            elif process_videos:
+                logging.info(f"Detected video file: {filename}")
+                logging.info(f"MIME type: {mime_type}")
+                process_video(download_path_with_extension)
         
         return True
     else:
@@ -167,7 +173,8 @@ def download_folder_files(
     max_size: Optional[float] = None,
     overwrite: bool = False,
     max_workers: int = 3,
-    process_videos: bool = True
+    process_videos: bool = True,
+    skip_videos: bool = False
 ) -> None:
     try:
         response = session.get(folder_url, headers={
@@ -209,7 +216,8 @@ def download_folder_files(
                     download_dir,
                     max_size,
                     overwrite,
-                    process_videos=process_videos
+                    process_videos=process_videos,
+                    skip_videos=skip_videos
                 )
                 futures.append(future)
             elif 'ilias.php?baseClass=ilrepositorygui' in href:
@@ -228,7 +236,8 @@ def download_ilias_module(
     max_size: Optional[float] = None,
     overwrite: bool = False,
     max_workers: int = 3,
-    process_videos: bool = True
+    process_videos: bool = True,
+    skip_videos: bool = False
 ) -> None:
     # Extract ref_id from URL
     parsed_url = urllib.parse.urlparse(ilias_url)
@@ -262,7 +271,7 @@ def download_ilias_module(
         os.makedirs(download_dir)
         
     logging.info(f"Starting download from {ilias_url}")
-    download_folder_files(session, ilias_url, ref_download_dir, max_size, overwrite, max_workers)
+    download_folder_files(session, ilias_url, ref_download_dir, max_size, overwrite, max_workers, process_videos, skip_videos)
     
     end_time = datetime.now()
     duration = end_time - start_time
@@ -300,6 +309,8 @@ def main() -> None:
                       help='Number of parallel downloads (default: 3)')
     parser.add_argument('--keep-video-fps', action='store_true',
                       help='Keep original video FPS (default: convert to 1 FPS)')
+    parser.add_argument('--no-video', action='store_true',
+                      help='Skip downloading video files completely')
     
     args = parser.parse_args()
     
@@ -318,7 +329,8 @@ def main() -> None:
             max_size=args.max_size,
             overwrite=args.overwrite,
             max_workers=args.workers,
-            process_videos=not args.keep_video_fps
+            process_videos=not args.keep_video_fps,
+            skip_videos=args.no_video
         )
         logging.info("Download completed successfully!")
     except requests.exceptions.ConnectionError as e:
