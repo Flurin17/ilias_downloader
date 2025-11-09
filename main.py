@@ -89,6 +89,60 @@ def process_video(filepath: Union[str, Path], target_fps: int = 1) -> None:
         logging.error(f"Error processing video {filepath}: {str(e)}")
         logging.error(f"Error processing video {filepath}: {str(e)}")
 
+def convert_docx_to_pdf(filepath: Union[str, Path]) -> bool:
+    """Convert DOCX file to PDF using docx2pdf"""
+    try:
+        filepath = Path(filepath)
+        logging.info(f"Converting DOCX to PDF: {filepath.name}")
+        
+        # Try to import docx2pdf
+        try:
+            from docx2pdf import convert
+        except ImportError:
+            logging.error("docx2pdf library not found. Install it with: pip install docx2pdf")
+            logging.info("Keeping original DOCX file")
+            return False
+        
+        # Initialize COM for the current thread (Windows only)
+        # This is required when docx2pdf is used in a thread
+        com_initialized = False
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            com_initialized = True
+        except ImportError:
+            pass  # pythoncom not available on non-Windows systems
+        except Exception:
+            pass  # COM already initialized or not needed
+        
+        try:
+            # Create PDF path (same name, different extension)
+            pdf_path = filepath.with_suffix('.pdf')
+            
+            # Convert DOCX to PDF
+            convert(str(filepath), str(pdf_path))
+            
+            # Remove original DOCX file if conversion was successful
+            if pdf_path.exists():
+                filepath.unlink()
+                logging.info(f"Conversion successful: {pdf_path.name}")
+                return True
+            else:
+                logging.error("PDF file was not created")
+                return False
+        finally:
+            # Uninitialize COM if we initialized it
+            if com_initialized:
+                try:
+                    pythoncom.CoUninitialize()
+                except:
+                    pass
+            
+    except Exception as e:
+        logging.error(f"Error converting DOCX to PDF {filepath}: {str(e)}")
+        logging.info("Keeping original DOCX file")
+        return False
+
 def download_file(
     session: requests.Session,
     file_url: str,
@@ -97,7 +151,8 @@ def download_file(
     overwrite: bool = False,
     max_retries: int = 3,
     process_videos: bool = True,
-    skip_videos: bool = False
+    skip_videos: bool = False,
+    convert_docx: bool = True
 ) -> bool:
     for attempt in range(max_retries):
         try:
@@ -126,6 +181,14 @@ def download_file(
         filename = sanitize_filename(filename)
         download_path_with_extension = os.path.join(download_dir, filename)
         
+        # Check if it's a video file BEFORE downloading (to skip download if needed)
+        content_type = response.headers.get('content-type', '').lower()
+        is_video = content_type.startswith('video/') or filename.lower().endswith(('.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'))
+        
+        if skip_videos and is_video:
+            logging.info(f"Skipping video file: {filename}")
+            return True
+        
         if not overwrite and os.path.exists(download_path_with_extension):
             logging.info(f"Skipping existing file: {filename}")
             return True
@@ -148,17 +211,16 @@ def download_file(
                     size = file.write(chunk)
                     pbar.update(size)
         
-        # Check if it's a video file
-        mime_type = mimetypes.guess_type(download_path_with_extension)[0]
-        if mime_type and mime_type.startswith('video'):
-            if skip_videos:
-                logging.info(f"Skipping video file: {filename}")
-                os.remove(download_path_with_extension)
-                return True
-            elif process_videos:
-                logging.info(f"Detected video file: {filename}")
-                logging.info(f"MIME type: {mime_type}")
-                process_video(download_path_with_extension)
+        # Process video if needed (we already checked skip_videos above)
+        if is_video and process_videos:
+            logging.info(f"Detected video file: {filename}")
+            logging.info(f"Content-Type: {content_type}")
+            process_video(download_path_with_extension)
+        
+        # Check if it's a DOCX file and convert to PDF
+        if convert_docx and download_path_with_extension.lower().endswith('.docx'):
+            logging.info(f"Detected DOCX file: {filename}")
+            convert_docx_to_pdf(download_path_with_extension)
         
         return True
     else:
@@ -174,7 +236,8 @@ def download_folder_files(
     overwrite: bool = False,
     max_workers: int = 3,
     process_videos: bool = True,
-    skip_videos: bool = False
+    skip_videos: bool = False,
+    convert_docx: bool = True
 ) -> None:
     try:
         response = session.get(folder_url, headers={
@@ -207,7 +270,24 @@ def download_folder_files(
             href = urllib.parse.urljoin(folder_url, href)
 
             # Check if the link is a file or a folder
-            if 'goto.php?target=file_' in href:
+            # Files: Check for file indicators first
+            is_file = (
+                'goto.php?target=file_' in href or 
+                'goto.php/file/' in href or
+                'cmdClass=ilObjFileGUI' in href or
+                'cmd=sendfile' in href
+            )
+            
+            # Folders: Check for folder indicators
+            is_folder = (
+                'goto.php/fold/' in href or
+                ('ilias.php?baseClass=ilrepositorygui' in href and not is_file)
+            )
+            
+            # Learning modules
+            is_learning_module = 'goto.php/lm/' in href
+            
+            if is_file:
                 logging.info(f"Found file: {href}")
                 future = executor.submit(
                     download_file, 
@@ -217,12 +297,16 @@ def download_folder_files(
                     max_size,
                     overwrite,
                     process_videos=process_videos,
-                    skip_videos=skip_videos
+                    skip_videos=skip_videos,
+                    convert_docx=convert_docx
                 )
                 futures.append(future)
-            elif 'ilias.php?baseClass=ilrepositorygui' in href:
+            elif is_folder:
                 logging.info(f"Processing folder: {href}")
-                download_folder_files(session, href, download_dir, max_size, overwrite, max_workers)
+                download_folder_files(session, href, download_dir, max_size, overwrite, max_workers, process_videos, skip_videos, convert_docx)
+            elif is_learning_module:
+                logging.info(f"Processing learning module: {href}")
+                download_folder_files(session, href, download_dir, max_size, overwrite, max_workers, process_videos, skip_videos, convert_docx)
         
         # Wait for all downloads to complete
         for future in futures:
@@ -237,7 +321,8 @@ def download_ilias_module(
     overwrite: bool = False,
     max_workers: int = 3,
     process_videos: bool = True,
-    skip_videos: bool = False
+    skip_videos: bool = False,
+    convert_docx: bool = True
 ) -> None:
     # Extract ref_id from URL
     parsed_url = urllib.parse.urlparse(ilias_url)
@@ -271,7 +356,7 @@ def download_ilias_module(
         os.makedirs(download_dir)
         
     logging.info(f"Starting download from {ilias_url}")
-    download_folder_files(session, ilias_url, ref_download_dir, max_size, overwrite, max_workers, process_videos, skip_videos)
+    download_folder_files(session, ilias_url, ref_download_dir, max_size, overwrite, max_workers, process_videos, skip_videos, convert_docx)
     
     end_time = datetime.now()
     duration = end_time - start_time
@@ -311,6 +396,8 @@ def main() -> None:
                       help='Keep original video FPS (default: convert to 1 FPS)')
     parser.add_argument('--no-video', action='store_true',
                       help='Skip downloading video files completely')
+    parser.add_argument('--keep-docx', action='store_true',
+                      help='Keep DOCX format (default: convert to PDF)')
     
     args = parser.parse_args()
     
@@ -330,7 +417,8 @@ def main() -> None:
             overwrite=args.overwrite,
             max_workers=args.workers,
             process_videos=not args.keep_video_fps,
-            skip_videos=args.no_video
+            skip_videos=args.no_video,
+            convert_docx=not args.keep_docx
         )
         logging.info("Download completed successfully!")
     except requests.exceptions.ConnectionError as e:
